@@ -4,27 +4,28 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-# -------------------------------------------------
-# Load environment variables from .env.local
-# -------------------------------------------------
+# --------------------------------------------------
+# Load environment variables (LOCAL ONLY)
+# --------------------------------------------------
 env_path = Path(__file__).resolve().parent / ".env.local"
-load_dotenv(env_path)
+if env_path.exists():
+    load_dotenv(env_path)
 
+# --------------------------------------------------
+# Environment variables
+# --------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-PORT = int(os.getenv("PORT", 5000))
+PORT = int(os.getenv("PORT", 10000))  # Render provides PORT
 
-if not GEMINI_API_KEY:
-    raise RuntimeError("❌ GEMINI_API_KEY not found in .env.local")
-
-# -------------------------------------------------
+# --------------------------------------------------
 # App setup
-# -------------------------------------------------
+# --------------------------------------------------
 app = Flask(__name__)
-CORS(app)  # allow frontend → backend communication
+CORS(app)  # Allow frontend → backend communication
 
-# -------------------------------------------------
+# --------------------------------------------------
 # Health check route
-# -------------------------------------------------
+# --------------------------------------------------
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
@@ -32,9 +33,9 @@ def health():
         "service": "ShadowTrace Backend"
     })
 
-# -------------------------------------------------
+# --------------------------------------------------
 # Analyze route
-# -------------------------------------------------
+# --------------------------------------------------
 @app.route("/analyze", methods=["POST"])
 def analyze():
     data = request.get_json()
@@ -42,8 +43,13 @@ def analyze():
     if not data:
         return jsonify({"error": "No input provided"}), 400
 
+    if not GEMINI_API_KEY:
+        return jsonify({
+            "error": "GEMINI_API_KEY not configured on server"
+        }), 500
+
     try:
-        # Lazy import to avoid circular / startup issues
+        # Lazy import to avoid startup issues
         from ai_engine import analyze_with_ai
 
         result = analyze_with_ai(data, GEMINI_API_KEY)
@@ -55,9 +61,10 @@ def analyze():
             "details": str(e)
         }), 500
 
-# -------------------------------------------------
-# Run server
-# -------------------------------------------------
+# --------------------------------------------------
+# Local development entry point
+# (Gunicorn ignores this on Render)
+# --------------------------------------------------
 if __name__ == "__main__":
     print("🚀 ShadowTrace Backend starting...")
     print(f"🔑 GEMINI_API_KEY loaded: {'YES' if GEMINI_API_KEY else 'NO'}")
